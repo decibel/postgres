@@ -45,6 +45,7 @@ static const int oldObjectTypePriority[] =
 	2,							/* DO_FUNC */
 	3,							/* DO_AGG */
 	3,							/* DO_OPERATOR */
+	3,							/* DO_ACCESS_METHOD */
 	4,							/* DO_OPCLASS */
 	4,							/* DO_OPFAMILY */
 	4,							/* DO_COLLATION */
@@ -95,6 +96,7 @@ static const int newObjectTypePriority[] =
 	6,							/* DO_FUNC */
 	7,							/* DO_AGG */
 	8,							/* DO_OPERATOR */
+	8,							/* DO_ACCESS_METHOD */
 	9,							/* DO_OPCLASS */
 	9,							/* DO_OPFAMILY */
 	3,							/* DO_COLLATION */
@@ -1324,6 +1326,10 @@ describeDumpableObject(DumpableObject *obj, char *buf, int bufsize)
 			snprintf(buf, bufsize,
 					 "OPERATOR %s  (ID %d OID %u)",
 					 obj->name, obj->dumpId, obj->catId.oid);
+			return;
+		case DO_ACCESS_METHOD:
+			snprintf(buf, bufsize,
+					 "");
 			return;
 		case DO_OPCLASS:
 			snprintf(buf, bufsize,

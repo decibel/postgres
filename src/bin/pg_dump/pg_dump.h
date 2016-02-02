@@ -48,6 +48,7 @@ typedef enum
 	DO_FUNC,
 	DO_AGG,
 	DO_OPERATOR,
+	DO_ACCESS_METHOD,
 	DO_OPCLASS,
 	DO_OPFAMILY,
 	DO_COLLATION,
@@ -77,7 +78,7 @@ typedef enum
 	DO_POST_DATA_BOUNDARY,
 	DO_EVENT_TRIGGER,
 	DO_REFRESH_MATVIEW,
-	DO_POLICY
+	DO_POLICY,
 } DumpableObjectType;
 
 typedef struct _dumpableObject
@@ -166,6 +167,12 @@ typedef struct _oprInfo
 	char		oprkind;
 	Oid			oprcode;
 } OprInfo;
+
+typedef struct _accessMethodInfo
+{
+	DumpableObject dobj;
+	char	   *amhandler;
+} AccessMethodInfo;
 
 typedef struct _opclassInfo
 {
@@ -546,6 +553,7 @@ extern TypeInfo *getTypes(Archive *fout, int *numTypes);
 extern FuncInfo *getFuncs(Archive *fout, int *numFuncs);
 extern AggInfo *getAggregates(Archive *fout, int *numAggregates);
 extern OprInfo *getOperators(Archive *fout, int *numOperators);
+extern AccessMethodInfo *getAccessMethods(Archive *fout, int *numAccessMethods);
 extern OpclassInfo *getOpclasses(Archive *fout, int *numOpclasses);
 extern OpfamilyInfo *getOpfamilies(Archive *fout, int *numOpfamilies);
 extern CollInfo *getCollations(Archive *fout, int *numCollations);

@@ -678,6 +678,12 @@ DefineOpClass(CreateOpClassStmt *stmt)
 	myself.objectId = opclassoid;
 	myself.objectSubId = 0;
 
+	/* dependency on access method */
+	referenced.classId = AccessMethodRelationId;
+	referenced.objectId = amoid;
+	referenced.objectSubId = 0;
+	recordDependencyOn(&myself, &referenced, DEPENDENCY_NORMAL);
+
 	/* dependency on namespace */
 	referenced.classId = NamespaceRelationId;
 	referenced.objectId = namespaceoid;
