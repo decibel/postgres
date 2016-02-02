@@ -1,0 +1,91 @@
+contrib/bloom provides signature file based index.
+
+Authors: Teodor Sigaev (teodor@sigaev.ru), Oleg Bartunov (oleg@sai.msu.su),
+         Alexander Korotkov (aekorotkov@gmail.com)
+
+
+This index is useful if table has many attributes and queries can include
+their arbitary combinations. Traditional Btree index is faster than
+bloom index , but it'd require too many indexes to support all possible 
+queries, while one need only one bloom index. Bloom index supports only 
+equality comparison. Since it's a signature file, not a tree, it always
+should be readed fully, but sequentially, so search performance is 
+constant and doesn't depends on a query. 
+Implementation of Bloom filter (http://en.wikipedia.org/wiki/Bloom_filter)
+allows fast exclusion of non-candidate tuples.
+Since signature is a lossy representation of all indexed attributes, 
+search results should be rechecked using heap information. 
+User can specify signature length (in uint16, default is 5) and the number of 
+bits, which can be setted, per attribute ( 1 < colN < 2048 ).
+
+ For example:
+
+CREATE INDEX bloomidx ON tbloom(i1,i2,i3) 
+       WITH (length=5, col1=2, col2=2, col3=4);
+
+Here, we create bloom index with signature length 80 bits and attributes
+i1, i2  mapped to 2 bits, attribute i3 - to 4 bits.
+
+
+Todo: 
+* add more opclasses
+* better configurability
+* add support of arrays with contains and intersection operations
+
+Example of usage:
+
+select
+        (generate_series(1,1000)*random())::int as i1,
+        (generate_series(1,1000)*random())::int as i2,
+        (generate_series(1,1000)*random())::int as i3,
+        (generate_series(1,1000)*random())::int as i4,
+        (generate_series(1,1000)*random())::int as i5,
+        (generate_series(1,1000)*random())::int as i6,
+        (generate_series(1,1000)*random())::int as i7,
+        (generate_series(1,1000)*random())::int as i8,
+        (generate_series(1,1000)*random())::int as i9,
+        (generate_series(1,1000)*random())::int as i10,
+        (generate_series(1,1000)*random())::int as i11,
+        (generate_series(1,1000)*random())::int as i12,
+        (generate_series(1,1000)*random())::int as i13
+into tbloom;
+create index bloomidx on tbloom using
+bloom(i1,i2,i3,i4,i5,i6,i7,i8,i9,i10,i11,i12);
+select pg_relation_size('bloomidx');
+create index btree_idx on tbloom(i1,i2,i3,i4,i5,i6,i7,i8,i9,i10,i11,i12);
+select pg_relation_size('btree_idx');
+
+
+=# explain analyze select * from tbloom where i2=20 and i10=15;
+                                                   QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------
+ Bitmap Heap Scan on tbloom  (cost=1.50..5.52 rows=1 width=52) (actual time=0.057..0.057 rows=0 loops=1)
+   Recheck Cond: ((i2 = 20) AND (i10 = 15))
+   ->  Bitmap Index Scan on bloomidx  (cost=0.00..1.50 rows=1 width=0) (actual time=0.041..0.041 rows=9 loops=1)
+         Index Cond: ((i2 = 20) AND (i10 = 15))
+ Total runtime: 0.081 ms
+(5 rows)
+
+Seqscan is slow.
+
+=# set enable_bitmapscan = off;
+=# set enable_indexscan = off;
+=# explain analyze select * from tbloom where i2=20 and i10=15;
+                                            QUERY PLAN
+--------------------------------------------------------------------------------------------------
+ Seq Scan on tbloom  (cost=0.00..25.00 rows=1 width=52) (actual time=0.162..0.162 rows=0 loops=1)
+   Filter: ((i2 = 20) AND (i10 = 15))
+ Total runtime: 0.181 ms
+(3 rows)
+
+Btree index will be not used.
+
+=# drop index bloomidx;
+=# create index btree_idx on tbloom(i1,i2,i3,i4,i5,i6,i7,i8,i9,i10,i11,i12);
+=# explain analyze  select * from tbloom where i2=20 and i10=15;
+                                            QUERY PLAN
+--------------------------------------------------------------------------------------------------
+ Seq Scan on tbloom (cost=0.00..25.00 rows=1 width=52) (actual time=0.210..0.210 rows=0 loops=1)
+   Filter: ((i2 = 20) AND (i10 = 15))
+ Total runtime: 0.250 ms
+(3 rows)
