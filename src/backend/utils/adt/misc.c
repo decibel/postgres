@@ -632,8 +632,8 @@ is_ident_cont(unsigned char c)
 }
 
 /*
- * parse_ident - parse SQL composed identifier into separate identifiers.
- * When strict mode is active (second parameter), then extra chars after
+ * parse_ident - parse SQL composed identifier to separate identifiers.
+ * When strict mode is active (second parameter), then any chars after
  * last identifiers are disallowed.
  */
 Datum
@@ -675,7 +675,7 @@ parse_ident(PG_FUNCTION_ARGS)
 						(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
 						 errmsg("unclosed double quotes"),
 						 errdetail("string \"%s\" is not valid identifier",
-							    text_to_cstring(qualname))));
+													qualname_str)));
 				if (endp[1] != '\"')
 					break;
 				memmove(endp, endp + 1, strlen(endp));
@@ -688,7 +688,7 @@ parse_ident(PG_FUNCTION_ARGS)
 				ereport(ERROR,
 					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
 					 errmsg("identifier should not be empty: \"%s\"",
-								    text_to_cstring(qualname))));
+												qualname_str)));
 
 			astate = accumArrayResult(astate,
 				CStringGetTextDatum(curname), false,
@@ -732,17 +732,17 @@ parse_ident(PG_FUNCTION_ARGS)
 				ereport(ERROR,
 					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
 					 errmsg("missing identifier before \".\" symbol: \"%s\"",
-								    text_to_cstring(qualname))));
+												qualname_str)));
 			else if (after_dot)
 				ereport(ERROR,
 					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
 					 errmsg("missing identifier after \".\" symbol: \"%s\"",
-								    text_to_cstring(qualname))));
+												qualname_str)));
 			else
 				ereport(ERROR,
 					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
 					 errmsg("missing identifier: \"%s\"",
-								    text_to_cstring(qualname))));
+												qualname_str)));
 		}
 
 		while (isspace((unsigned char) *nextp))
@@ -766,7 +766,7 @@ parse_ident(PG_FUNCTION_ARGS)
 				ereport(ERROR,
 					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
 					 errmsg("identifier contains disallowed characters: \"%s\"",
-								    text_to_cstring(qualname))));
+												qualname_str)));
 			break;
 		}
 	}
