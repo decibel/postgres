@@ -965,3 +965,10 @@ RETURNS jsonb
 LANGUAGE INTERNAL
 STRICT IMMUTABLE
 AS 'jsonb_set';
+
+CREATE OR REPLACE FUNCTION
+  parse_ident(str text, strictmode boolean DEFAULT true)
+RETURNS text[]
+LANGUAGE INTERNAL
+STRICT IMMUTABLE
+AS 'parse_ident';
