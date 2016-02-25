@@ -775,6 +775,127 @@ CREATE EVENT TRIGGER tcl_a_snitch ON ddl_command_start EXECUTE PROCEDURE tclsnit
     </para>
    </sect1>
 
+   <sect1 id="pltcl-error-handling">
+    <title>Error Handling in PL/Tcl</title>
+
+    <indexterm>
+     <primary>error handling</primary>
+     <secondary>in PL/Tcl</secondary>
+    </indexterm>
+
+    <para>
+     All Tcl errors that are allowed to propagate back to the top level of the
+     interpreter, that is, errors not caught within the stored procedure
+     using the Tcl <function>catch</function> command will raise a database
+     error.
+    </para>
+    <para>
+     Tcl code within or called from the stored procedure can choose to
+     raise a database error by invoking the <function>elog</function>
+     command provided by PL/Tcl or by generating an error using the Tcl
+     <function>error</function> command and not catching it with Tcl's
+     <function>catch</function> command.
+    </para>
+    <para>
+     Database errors that occur from the PL/Tcl stored procedure's
+     use of <function>spi_exec</function>, <function>spi_prepare</function>,
+     and <function>spi_execp</function> are also catchable by Tcl's
+     <function>catch</function> command.
+    </para>
+    <para>
+     Tcl provides an <varname>errorCode</varname> variable that can
+     represent additional information about the error in a form that
+     is easy for programs to interpret.  The contents are in Tcl list
+     format and the first word identifies the subsystem or
+     library responsible for the error and beyond that the contents are left
+     to the individual code or library.  For example if Tcl's
+     <function>open</function> command is asked to open a file that doesn't
+     exist, <varname>errorCode</varname>
+     might contain <literal>POSIX ENOENT {no such file or directory}</literal>
+     where the third element may vary by locale but the first and second
+     will not.
+    </para>
+    <para>
+     When <function>spi_exec</function>, <function>spi_prepare</function>
+     or <function>spi_execp</function> cause a database error to be raised,
+     that database eror propagates back to Tcl as a Tcl error.
+     In this case <varname>errorCode</varname> is set to a list
+     where the first element is <literal>POSTGRES</literal> followed by a
+     copious decoding of the Postgres error structure.  Since fields in the
+     structure may or may not be present depending on the nature of the
+     error, how the function was invoked, etc, PL/Tcl has adopted the 
+     convention that subsequent elements of the <varname>errorCode</varname>
+     list are key-value pairs where the first value is the name of the
+     field and the second is its value.
+    </para>
+    <para>
+     Fields that may be present include <varname>message</varname>,
+     <varname>detail</varname>, <varname>detail_log</varname>,
+     <varname>hint</varname>, <varname>domain</varname>,
+     <varname>context_domain</varname>, <varname>context</varname>,
+     <varname>schema</varname>, <varname>table</varname>,
+     <varname>column</varname>, <varname>datatype</varname>,
+     <varname>constraint</varname>, <varname>cursor_position</varname>,
+     <varname>internalquery</varname>, <varname>internal_position</varname>,
+     <varname>filename</varname>, <varname>lineno</varname> and
+     <varname>funcname</varname>.
+    </para>
+    <para>
+     You might find it useful to load the results into an array. Code
+     for doing that might look like
+<programlisting>
+    if {[lindex $errorCode 0] == "POSTGRES"} {
+        array set errorRow [lrange $errorCode 1 end]
+    }
+</programlisting>
+    </para>
+    <para>
+     In the example below we cause an error by attempting to
+     <command>SELECT</> from a table that doesn't exist.
+<screen>
+select tcl_eval('spi_exec "select * from foo;"');
+</screen>
+<screen>
+<computeroutput>
+ERROR:  relation "foo" does not exist
+</computeroutput>
+</screen>
+    </para>
+    <para>
+     Now we examine the error code.  (The double-colons explicitly
+     reference <varname>errorCode</varname> as a global variable.)
+<screen>
+select tcl_eval('join $::errorCode "\n"');
+</screen>
+<screen>
+<computeroutput>
+           tcl_eval            
+-------------------------------
+ POSTGRES                     +
+ message                      +
+ relation "foo" does not exist+
+ domain                       +
+ postgres-9.6                 +
+ context_domain               +
+ postgres-9.6                 +
+ cursorpos                    +
+ 0                            +
+ internalquery                +
+ select * from foo;           +
+ internalpos                  +
+ 15                           +
+ filename                     +
+ parse_relation.c             +
+ lineno                       +
+ 1159                         +
+ funcname                     +
+ parserOpenTable
+(1 row)
+</computeroutput>
+</screen>
+    </para>
+   </sect1>
+
    <sect1 id="pltcl-unknown">
        <title>Modules and the <function>unknown</> Command</title>
        <para>
