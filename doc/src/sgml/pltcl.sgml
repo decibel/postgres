@@ -784,9 +784,9 @@ CREATE EVENT TRIGGER tcl_a_snitch ON ddl_command_start EXECUTE PROCEDURE tclsnit
     </indexterm>
 
     <para>
-     All Tcl errors that are allowed to propagate back to the top level of the
-     interpreter. Errors not caught within the stored procedure using the Tcl
-     <function>catch</function> command will raise a database error.
+     All Tcl errors that occur within a stored procedure and are not caught
+     using Tcl's <function>catch</function> or <function>try</function>
+     functions will raise a database error.
     </para>
     <para>
      Tcl code can raise a database error by invoking the
