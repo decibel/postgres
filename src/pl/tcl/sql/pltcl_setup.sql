@@ -616,9 +616,9 @@ CREATE OR REPLACE FUNCTION tcl_test_cube_squared(in int, out squared int, out cu
     return [list squared [expr {$1 * $1}] cubed [expr {$1 * $1 * $1}]]
 $$ LANGUAGE 'pltcl';
 
-CREATE OR REPLACE FUNCTION tcl_test_cube_squared_rows(int,int) RETURNS TABLE (n int, squared int, cubed int) AS $$
+CREATE OR REPLACE FUNCTION tcl_test_squared_rows(int,int) RETURNS TABLE (x int, y int) AS $$
     for {set i $1} {$i < $2} {incr i} {
-        return_next [list n $i squared [expr {$i * $i}] cubed [expr {$i * $i * $i}]]
+        return_next [list x $i y [expr {$i * $i}]]
     }
 $$ LANGUAGE 'pltcl';
 

@@ -105,11 +105,11 @@ CREATE FUNCTION bad_record(OUT a text , OUT b text) AS $$return [list cow]$$ LAN
 SELECT bad_record();
 
 CREATE OR REPLACE FUNCTION tcl_error(OUT a int, OUT b int) AS $$return {$$ LANGUAGE pltcl;
-SELECT crash();
+SELECT tcl_error();
 
 -- test multi-row returns
-select * from tcl_test_cube_squared_rows(1,10);
+select * from tcl_test_squared_rows(0,5);
 
 -- test setof returns
-select * from tcl_test_sequence(1,10) as a;
+select * from tcl_test_sequence(0,5) as a;
 
