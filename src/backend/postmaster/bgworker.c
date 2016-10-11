@@ -14,8 +14,9 @@
 
 #include <unistd.h>
 
-#include "miscadmin.h"
 #include "libpq/pqsignal.h"
+#include "miscadmin.h"
+#include "pgstat.h"
 #include "postmaster/bgworker_internals.h"
 #include "postmaster/postmaster.h"
 #include "storage/barrier.h"
@@ -969,7 +970,8 @@ WaitForBackgroundWorkerStartup(BackgroundWorkerHandle *handle, pid_t *pidp)
 			break;
 
 		rc = WaitLatch(MyLatch,
-					   WL_LATCH_SET | WL_POSTMASTER_DEATH, 0);
+					   WL_LATCH_SET | WL_POSTMASTER_DEATH, 0,
+					   WAIT_EVENT_BGWORKER_STARTUP);
 
 		if (rc & WL_POSTMASTER_DEATH)
 		{
@@ -1008,7 +1010,8 @@ WaitForBackgroundWorkerShutdown(BackgroundWorkerHandle *handle)
 			break;
 
 		rc = WaitLatch(&MyProc->procLatch,
-					   WL_LATCH_SET | WL_POSTMASTER_DEATH, 0);
+					   WL_LATCH_SET | WL_POSTMASTER_DEATH, 0,
+					   WAIT_EVENT_BGWORKER_SHUTDOWN);
 
 		if (rc & WL_POSTMASTER_DEATH)
 		{

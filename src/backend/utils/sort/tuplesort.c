@@ -2882,9 +2882,8 @@ mergeonerun(Tuplesortstate *state)
  * beginmerge - initialize for a merge pass
  *
  * We decrease the counts of real and dummy runs for each tape, and mark
- * which tapes contain active input runs in mergeactive[].  Then, load
- * as many tuples as we can from each active input tape, and finally
- * fill the merge heap with the first tuple from each active tape.
+ * which tapes contain active input runs in mergeactive[].  Then, fill the
+ * merge heap with the first tuple from each active tape.
  */
 static void
 beginmerge(Tuplesortstate *state)
@@ -3083,14 +3082,14 @@ dumpbatch(Tuplesortstate *state, bool alltuples)
 	 * a call with no subsequent run actually written to destTape), we prefer
 	 * to write out a 0 tuple run.
 	 *
-	 * mergepreread()/mergeprereadone() are prepared for 0 tuple runs, and
-	 * will reliably mark the tape inactive for the merge when called from
-	 * beginmerge().  This case is therefore similar to the case where
-	 * mergeonerun() finds a dummy run for the tape, and so doesn't need to
-	 * merge a run from the tape (or conceptually "merges" the dummy run, if
-	 * you prefer).  According to Knuth, Algorithm D "isn't strictly optimal"
-	 * in its method of distribution and dummy run assignment; this edge case
-	 * seems very unlikely to make that appreciably worse.
+	 * mergereadnext() is prepared for 0 tuple runs, and will reliably mark
+	 * the tape inactive for the merge when called from beginmerge().  This
+	 * case is therefore similar to the case where mergeonerun() finds a dummy
+	 * run for the tape, and so doesn't need to merge a run from the tape (or
+	 * conceptually "merges" the dummy run, if you prefer).  According to
+	 * Knuth, Algorithm D "isn't strictly optimal" in its method of
+	 * distribution and dummy run assignment; this edge case seems very
+	 * unlikely to make that appreciably worse.
 	 */
 	Assert(state->status == TSS_BUILDRUNS);
 

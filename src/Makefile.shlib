@@ -127,7 +127,7 @@ ifeq ($(PORTNAME), darwin)
   else
     # loadable module
     DLSUFFIX		= .so
-    LINK.shared		= $(COMPILER) -bundle -multiply_defined suppress -Wl,-undefined,dynamic_lookup
+    LINK.shared		= $(COMPILER) -bundle -multiply_defined suppress
   endif
   BUILD.exports		= $(AWK) '/^[^\#]/ {printf "_%s\n",$$1}' $< >$@
   exports_file		= $(SHLIB_EXPORTS:%.txt=%.list)
@@ -233,30 +233,6 @@ ifeq ($(PORTNAME), solaris)
     else
       LINK.shared	+= -h $(soname)
     endif
-  endif
-endif
-
-ifeq ($(PORTNAME), sco)
-  ifeq ($(GCC), yes)
-    LINK.shared		= $(CC) -shared
-  else
-    LINK.shared		= $(CC) -G
-    endif
-  LINK.shared		+= -Wl,-z,text
-  ifdef soname
-    LINK.shared		+= -Wl,-h,$(soname)
-  endif
-endif
-
-ifeq ($(PORTNAME), unixware)
-  ifeq ($(GCC), yes)
-    LINK.shared		= $(CC) -shared
-  else
-    LINK.shared		= $(CC) -G
-  endif
-  LINK.shared		+= -Wl,-z,text
-  ifdef soname
-    LINK.shared		+= -Wl,-h,$(soname)
   endif
 endif
 

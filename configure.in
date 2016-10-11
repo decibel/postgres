@@ -69,9 +69,7 @@ dragonfly*) template=netbsd ;;
    mingw*) template=win32 ;;
   netbsd*) template=netbsd ;;
  openbsd*) template=openbsd ;;
-     sco*) template=sco ;;
  solaris*) template=solaris ;;
-   sysv5*) template=unixware ;;
 esac
 
   if test x"$template" = x"" ; then
@@ -871,18 +869,6 @@ AC_ARG_VAR(LDFLAGS_SL, [extra linker flags for linking shared libraries only])
 PGAC_PROG_LD
 AC_SUBST(LD)
 AC_SUBST(with_gnu_ld)
-case $host_os in sysv5*)
-  AC_CACHE_CHECK([whether ld -R works], [pgac_cv_prog_ld_R],
-  [
-    pgac_save_LDFLAGS=$LDFLAGS; LDFLAGS="$LDFLAGS -Wl,-R/usr/lib"
-    AC_LINK_IFELSE([AC_LANG_PROGRAM([], [])],
-      [pgac_cv_prog_ld_R=yes],
-      [pgac_cv_prog_ld_R=no])
-    LDFLAGS=$pgac_save_LDFLAGS
-  ])
-  ld_R_works=$pgac_cv_prog_ld_R
-  AC_SUBST(ld_R_works)
-esac
 AC_PROG_RANLIB
 PGAC_CHECK_STRIP
 AC_CHECK_TOOL(AR, ar, ar)
@@ -934,40 +920,6 @@ fi
 if test "$with_python" = yes; then
   PGAC_PATH_PYTHON
   PGAC_CHECK_PYTHON_EMBED_SETUP
-
-  # We need libpython as a shared library.  With Python >=2.5, we
-  # check the Py_ENABLE_SHARED setting.  On Debian, the setting is not
-  # correct before the jessie release (http://bugs.debian.org/695979).
-  # We also want to support older Python versions.  So as a fallback
-  # we see if there is a file that is named like a shared library.
-
-  if test "$python_enable_shared" != 1; then
-    if test "$PORTNAME" = darwin; then
-      # macOS does supply a .dylib even though Py_ENABLE_SHARED does
-      # not get set.  The file detection logic below doesn't succeed
-      # on older macOS versions, so make it explicit.
-      python_enable_shared=1
-    elif test "$PORTNAME" = win32; then
-      # Windows also needs an explicit override.
-      python_enable_shared=1
-    else
-      # We don't know the platform shared library extension here yet,
-      # so we try some candidates.
-      for dlsuffix in .so .sl; do
-        if ls "$python_libdir"/libpython*${dlsuffix}* >/dev/null 2>&1; then
-          python_enable_shared=1
-          break
-        fi
-      done
-    fi
-  fi
-
-  if test "$python_enable_shared" != 1; then
-    AC_MSG_ERROR([cannot build PL/Python because libpython is not a shared library
-You might have to rebuild your Python installation.  Refer to the
-documentation for details.  Use --without-python to disable building
-PL/Python.])
-  fi
 fi
 
 if test "$cross_compiling" = yes && test -z "$with_system_tzdata"; then
@@ -1973,17 +1925,30 @@ AC_SUBST(PG_CRC32C_OBJS)
 
 # Select semaphore implementation type.
 if test "$PORTNAME" != "win32"; then
+  if test x"$PREFERRED_SEMAPHORES" = x"NAMED_POSIX" ; then
+    # Need sem_open for this
+    AC_SEARCH_LIBS(sem_open, [rt pthread], [USE_NAMED_POSIX_SEMAPHORES=1])
+  fi
+  if test x"$PREFERRED_SEMAPHORES" = x"UNNAMED_POSIX" ; then
+    # Need sem_init for this
+    AC_SEARCH_LIBS(sem_init, [rt pthread], [USE_UNNAMED_POSIX_SEMAPHORES=1])
+  fi
+  AC_MSG_CHECKING([which semaphore API to use])
   if test x"$USE_NAMED_POSIX_SEMAPHORES" = x"1" ; then
     AC_DEFINE(USE_NAMED_POSIX_SEMAPHORES, 1, [Define to select named POSIX semaphores.])
     SEMA_IMPLEMENTATION="src/backend/port/posix_sema.c"
+    sematype="named POSIX"
   else
     if test x"$USE_UNNAMED_POSIX_SEMAPHORES" = x"1" ; then
       AC_DEFINE(USE_UNNAMED_POSIX_SEMAPHORES, 1, [Define to select unnamed POSIX semaphores.])
       SEMA_IMPLEMENTATION="src/backend/port/posix_sema.c"
+      sematype="unnamed POSIX"
     else
       AC_DEFINE(USE_SYSV_SEMAPHORES, 1, [Define to select SysV-style semaphores.])
       SEMA_IMPLEMENTATION="src/backend/port/sysv_sema.c"
+      sematype="System V"
     fi
+  AC_MSG_RESULT([$sematype])
   fi
 else
   AC_DEFINE(USE_WIN32_SEMAPHORES, 1, [Define to select Win32-style semaphores.])
