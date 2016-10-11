@@ -612,11 +612,6 @@ create function tcl_error_handling_test() returns text as $$
     }
 $$ language pltcl;
 
-CREATE OR REPLACE FUNCTION tcl_eval(in string varchar, out code int, out result varchar) AS $$
-	set code [catch $1 catchResult]
-	return [list code $code result $catchResult]
-$$ LANGUAGE 'pltcl';
-
 CREATE OR REPLACE FUNCTION tcl_test_cube_squared(in int, out squared int, out cubed int) AS $$
     return [list squared [expr {$1 * $1}] cubed [expr {$1 * $1 * $1}]]
 $$ LANGUAGE 'pltcl';
