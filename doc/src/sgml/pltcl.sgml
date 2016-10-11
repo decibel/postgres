@@ -178,7 +178,7 @@ $$ LANGUAGE pltcl;
      key-value pairs matching the output parameters.
 
 <programlisting>
-CREATE FUNCTION cube_squared(in int, out squared int, out cubed int) AS $$
+CREATE FUNCTION square_cube(in int, out squared int, out cubed int) AS $$
     return [list squared [expr {$1 * $1}] cubed [expr {$1 * $1 * $1}]]
 $$ LANGUAGE 'pltcl';
 </programlisting>
@@ -199,11 +199,10 @@ $$ LANGUAGE 'pltcl';
     </para>
 
     <para>
-     Any columns that defined in the composite return type but absent from a list of
-     key-value pairs passed to <literal>return_next</> are implicitly null in the
-     corresponding row.
-     PL/Tcl will generate a Tcl error when a column name in the key-value list
-     is not one of the defined columns.
+     Any columns that are defined in the composite return type but absent from
+     a list of key-value pairs passed to <literal>return_next</> are implicitly
+     null in the corresponding row. PL/Tcl will generate a Tcl error when a
+     column name in the key-value list is not one of the defined columns.
     </para>
 
     <para>
