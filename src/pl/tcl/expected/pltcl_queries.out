@@ -303,3 +303,41 @@ select tcl_lastoid('t2') > 0;
  t
 (1 row)
 
+-- test compound return
+select * from tcl_test_cube_squared(5);
+ squared | cubed 
+---------+-------
+      25 |   125
+(1 row)
+
+CREATE FUNCTION bad_record(OUT a text , OUT b text) AS $$return [list cow]$$ LANGUAGE pltcl;
+SELECT bad_record();
+ERROR:  list must have even number of elements
+CREATE FUNCTION bad_field(OUT a text , OUT b text) AS $$return [list cow 1 a 2 b 3]$$ LANGUAGE pltcl;
+SELECT bad_field();
+ERROR:  Tcl list contains nonexistent column "cow"
+CREATE OR REPLACE FUNCTION tcl_error(OUT a int, OUT b int) AS $$return {$$ LANGUAGE pltcl;
+SELECT tcl_error();
+ERROR:  missing close-brace
+-- test multi-row returns
+select * from tcl_test_squared_rows(0,5);
+ x | y  
+---+----
+ 0 |  0
+ 1 |  1
+ 2 |  4
+ 3 |  9
+ 4 | 16
+(5 rows)
+
+-- test setof returns
+select * from tcl_test_sequence(0,5) as a;
+ a 
+---
+ 0
+ 1
+ 2
+ 3
+ 4
+(5 rows)
+

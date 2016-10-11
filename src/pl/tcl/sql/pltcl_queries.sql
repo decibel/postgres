@@ -104,6 +104,9 @@ select * from tcl_test_cube_squared(5);
 CREATE FUNCTION bad_record(OUT a text , OUT b text) AS $$return [list cow]$$ LANGUAGE pltcl;
 SELECT bad_record();
 
+CREATE FUNCTION bad_field(OUT a text , OUT b text) AS $$return [list cow 1 a 2 b 3]$$ LANGUAGE pltcl;
+SELECT bad_field();
+
 CREATE OR REPLACE FUNCTION tcl_error(OUT a int, OUT b int) AS $$return {$$ LANGUAGE pltcl;
 SELECT tcl_error();
 

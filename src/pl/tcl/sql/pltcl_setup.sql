@@ -618,7 +618,7 @@ $$ LANGUAGE 'pltcl';
 
 CREATE OR REPLACE FUNCTION tcl_test_squared_rows(int,int) RETURNS TABLE (x int, y int) AS $$
     for {set i $1} {$i < $2} {incr i} {
-        return_next [list x $i y [expr {$i * $i}]]
+        return_next [list y [expr {$i * $i}] x $i]
     }
 $$ LANGUAGE 'pltcl';
 
