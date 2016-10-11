@@ -110,8 +110,11 @@ SELECT bad_field();
 CREATE OR REPLACE FUNCTION tcl_error(OUT a int, OUT b int) AS $$return {$$ LANGUAGE pltcl;
 SELECT tcl_error();
 
--- test multi-row returns
+-- test SRF
 select * from tcl_test_squared_rows(0,5);
+
+CREATE OR REPLACE FUNCTION non_srf() RETURNS int AS $$return_next 1$$ LANGUAGE pltcl;
+select non_srf();
 
 -- test setof returns
 select * from tcl_test_sequence(0,5) as a;

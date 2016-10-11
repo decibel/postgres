@@ -319,7 +319,7 @@ ERROR:  Tcl list contains nonexistent column "cow"
 CREATE OR REPLACE FUNCTION tcl_error(OUT a int, OUT b int) AS $$return {$$ LANGUAGE pltcl;
 SELECT tcl_error();
 ERROR:  missing close-brace
--- test multi-row returns
+-- test SRF
 select * from tcl_test_squared_rows(0,5);
  x | y  
 ---+----
@@ -330,6 +330,9 @@ select * from tcl_test_squared_rows(0,5);
  4 | 16
 (5 rows)
 
+CREATE OR REPLACE FUNCTION non_srf() RETURNS int AS $$return_next 1$$ LANGUAGE pltcl;
+select non_srf();
+ERROR:  cannot use return_next in a non-set-returning function
 -- test setof returns
 select * from tcl_test_sequence(0,5) as a;
  a 

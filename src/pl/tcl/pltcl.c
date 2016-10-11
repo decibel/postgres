@@ -811,15 +811,15 @@ pltcl_func_handler(PG_FUNCTION_ARGS, bool pltrusted)
 									 false, pltrusted);
 
 	/*
-	 * globally store current proc description, this can be redone using
-	 * clientdata-type structures and eventually allow threading or something
+	 * Store current proc description globally. This should be redone using
+	 * clientdata-type structures to allow threading.
 	 */
 	pltcl_current_prodesc = prodesc;
 	prodesc->fn_refcount++;
 
 	interp = prodesc->interp_desc->interp;
 
-	/* reset essential function runtime to a known state */
+	/* Reset essential function runtime to a known state. */
 	pltcl_reset_state(prodesc, (ReturnSetInfo *) fcinfo->resultinfo);
 
 	/************************************************************
@@ -1420,15 +1420,16 @@ pltcl_init_tuple_store(pltcl_proc_desc *prodesc)
 	ResourceOwner oldowner;
 
 	/*
-	 * Check caller can handle a set result in the way we want
+	 * Check caller can handle a set result in the way we want. This should
+	 * have already been checked, but might as well play it safe.
 	 */
 	if (!rsi || !IsA(rsi, ReturnSetInfo) ||
-		(rsi->allowedModes & SFRM_Materialize) == 0 ||
-		rsi->expectedDesc == NULL)
+		(rsi->allowedModes & SFRM_Materialize) == 0)
 		ereport(ERROR,
 				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 				 errmsg("set-valued function called in context that cannot accept a set")));
 
+	Assert(rsi->expectedDesc);
 	Assert(!prodesc->tuple_store);
 	Assert(!prodesc->attinmeta);
 
@@ -1587,18 +1588,6 @@ compile_pltcl_function(Oid fn_oid, Oid tgreloid,
 			(procStruct->provolatile != PROVOLATILE_VOLATILE);
 		/* And whether it is trusted */
 		prodesc->lanpltrusted = pltrusted;
-
-		/* not necessary since MemSet 0 above */
-		prodesc->fn_retistuple = false;
-		prodesc->fn_retisset = false;
-		prodesc->result_oid = VOIDOID;
-		prodesc->tuple_store_cxt = NULL;
-		prodesc->tuple_store_owner = NULL;
-		prodesc->tuple_store = NULL;
-		prodesc->ret_tupdesc = NULL;
-		prodesc->attinmeta = NULL;
-		prodesc->natts = 0;
-
 
 		/************************************************************
 		 * Identify the interpreter to use for the function
@@ -2290,18 +2279,9 @@ pltcl_returnnext(ClientData cdata, Tcl_Interp *interp,
 	int			rowObjc;
 	pltcl_proc_desc *prodesc = pltcl_current_prodesc;
 
-	/************************************************************
-	 * Check call syntax
-	 ************************************************************/
-	if (objc != 2)
-	{
-		Tcl_WrongNumArgs(interp, 1, objv, "list");
-		return TCL_ERROR;
-	}
-
-	/************************************************************
+	/*
 	 * Check that we're called as a normal function
-	 ************************************************************/
+	 */
 	if (fcinfo == NULL)
 	{
 		Tcl_SetObjResult(interp,
@@ -2309,17 +2289,24 @@ pltcl_returnnext(ClientData cdata, Tcl_Interp *interp,
 		return TCL_ERROR;
 	}
 
+	/*
+	 * Check call syntax
+	 */
+	if (objc != 2)
+	{
+		Tcl_WrongNumArgs(interp, 1, objv, "list");
+		return TCL_ERROR;
+	}
+
 	if (!prodesc->fn_retisset)
 	{
 		Tcl_SetObjResult(interp,
-						 Tcl_NewStringObj("cannot use return_next in a non-SETOF function", -1));
+						 Tcl_NewStringObj("cannot use return_next in a non-set-returning function", -1));
 		return TCL_ERROR;
 	}
 
 	if (Tcl_ListObjGetElements(interp, objv[1], &rowObjc, &rowObjv) == TCL_ERROR)
-	{
 		return TCL_ERROR;
-	}
 
 	if ((rowObjc != 1) && (rowObjc & 1))
 	{
@@ -2453,6 +2440,10 @@ pltcl_SPI_execute(ClientData cdata, Tcl_Interp *interp,
 	i = 1;
 	while (i < objc)
 	{
+		/*
+		 *  Don't store an error message in the interpreter. It isn't an error
+		 *  if it doesn't find an option.
+		 */
 		if (Tcl_GetIndexFromObj(NULL, objv[i], options, "option",
 								TCL_EXACT, &optIndex) != TCL_OK)
 			break;
@@ -2799,6 +2790,10 @@ pltcl_SPI_execute_plan(ClientData cdata, Tcl_Interp *interp,
 	i = 1;
 	while (i < objc)
 	{
+		/*
+		 *  Don't store an error message in the interpreter. It isn't an error
+		 *  if it doesn't find an option.
+		 */
 		if (Tcl_GetIndexFromObj(NULL, objv[i], options, "option",
 								TCL_EXACT, &optIndex) != TCL_OK)
 			break;
@@ -2982,9 +2977,9 @@ static int
 pltcl_SPI_lastoid(ClientData cdata, Tcl_Interp *interp,
 				  int objc, Tcl_Obj *const objv[])
 {
-	/************************************************************
+	/*
 	 * Check call syntax
-	 ************************************************************/
+	 */
 	if (objc != 1)
 	{
 		Tcl_WrongNumArgs(interp, 1, objv, "");
