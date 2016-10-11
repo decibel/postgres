@@ -113,3 +113,45 @@ select * from tcl_test_cube_squared_rows(1,10);
 -- test setof returns
 select * from tcl_test_sequence(1,10) as a;
 
+-- Test quote
+select * from tcl_eval('quote foo bar');
+select * from tcl_eval('quote [format %c 39]');
+select * from tcl_eval('quote [format %c 92]');
+
+-- Test argisnull
+select * from tcl_eval('argisnull');
+select * from tcl_eval('argisnull 14');
+select * from tcl_eval('argisnull abc');
+
+-- Test return_null
+select * from tcl_eval('return_null 14');
+
+-- Test spi_exec
+select * from tcl_eval('spi_exec');
+select * from tcl_eval('spi_exec -count');
+select * from tcl_eval('spi_exec -array');
+select * from tcl_eval('spi_exec -count abc');
+select * from tcl_eval('spi_exec query loop body toomuch');
+select * from tcl_eval('spi_exec "begin; rollback;"');
+
+-- Test spi_execp
+select * from tcl_eval('spi_execp');
+select * from tcl_eval('spi_execp -count');
+select * from tcl_eval('spi_execp -array');
+select * from tcl_eval('spi_execp -count abc');
+select * from tcl_eval('spi_execp -nulls');
+select * from tcl_eval('set prep [spi_prepare "begin; rollback" ""]; spi_execp $prep');
+
+-- test spi_prepare
+select * from tcl_eval('spi_prepare');
+select * from tcl_eval('spi_prepare a b');
+select * from tcl_eval('spi_prepare a "b {"');
+
+-- test elog
+select * from tcl_eval('elog');
+select * from tcl_eval('elog foo bar');
+
+-- test forced error
+select tcl_eval('error "forced error"');
+
+select * from tcl_eval('unset -nocomplain ::tcl_vwait; after 100 {set ::tcl_vwait 1}; vwait ::tcl_vwait; unset -nocomplain ::tcl_vwait');

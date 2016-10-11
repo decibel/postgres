@@ -628,6 +628,11 @@ CREATE OR REPLACE FUNCTION tcl_test_sequence(int,int) RETURNS SETOF int AS $$
     }
 $$ language 'pltcl';
 
+CREATE OR REPLACE FUNCTION tcl_eval(in string varchar, out code int, out result varchar) AS $$
+	set code [catch $1 catchResult]
+	return [list code $code result $catchResult]
+$$ LANGUAGE 'pltcl';
+
 select tcl_error_handling_test();
 
 create temp table foo(f1 int);
