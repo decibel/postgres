@@ -101,7 +101,7 @@ select tcl_lastoid('t2') > 0;
 -- test compound return
 select * from tcl_test_cube_squared(5);
 
-CREATE FUNCTION bad_record(OUT a text , OUT b text) AS $$return [list cow]$$ LANGUAGE pltcl;
+CREATE FUNCTION bad_record(OUT a text , OUT b text) AS $$return [list a]$$ LANGUAGE pltcl;
 SELECT bad_record();
 
 CREATE FUNCTION bad_field(OUT a text , OUT b text) AS $$return [list cow 1 a 2 b 3]$$ LANGUAGE pltcl;
@@ -113,9 +113,20 @@ SELECT tcl_error();
 -- test SRF
 select * from tcl_test_squared_rows(0,5);
 
+select * from tcl_test_sequence(0,5) as a;
+
+select 1, tcl_test_sequence(0,5);
+
 CREATE OR REPLACE FUNCTION non_srf() RETURNS int AS $$return_next 1$$ LANGUAGE pltcl;
 select non_srf();
 
--- test setof returns
-select * from tcl_test_sequence(0,5) as a;
+CREATE FUNCTION bad_record_srf(OUT a text , OUT b text) RETURNS SETOF record AS $$
+return_next [list a]
+$$ LANGUAGE pltcl;
+SELECT bad_record_srf();
+
+CREATE FUNCTION bad_field_srf(OUT a text , OUT b text) RETURNS SETOF record AS $$
+return_next [list cow 1 a 2 b 3]
+$$ LANGUAGE pltcl;
+SELECT bad_field_srf();
 

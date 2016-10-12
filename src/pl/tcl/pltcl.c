@@ -347,6 +347,11 @@ pltcl_build_tuple_result(Tcl_Interp *interp, Tcl_Obj **kvObjv, int kvObjc, pltcl
 	char	  **values;
 	int			i;
 
+	if (kvObjc & 1)
+		ereport(ERROR,
+				(errcode(ERRCODE_EXTERNAL_ROUTINE_EXCEPTION),
+				 errmsg("list must have even number of elements")));
+
 	values = (char **) palloc0(prodesc->natts * sizeof(char *));
 
 	for (i = 0; i < kvObjc; i += 2)
@@ -982,11 +987,6 @@ pltcl_func_handler(PG_FUNCTION_ARGS, bool pltrusted)
 		resultObj = Tcl_GetObjResult(interp);
 		if (Tcl_ListObjGetElements(interp, resultObj, &resultObjc, &resultObjv) == TCL_ERROR)
 			throw_tcl_error(interp, prodesc->user_proname);
-
-		if (resultObjc & 1)
-			ereport(ERROR,
-					(errcode(ERRCODE_EXTERNAL_ROUTINE_EXCEPTION),
-					 errmsg("list must have even number of elements")));
 
 		Assert(!prodesc->ret_tupdesc);
 		Assert(!prodesc->attinmeta);
