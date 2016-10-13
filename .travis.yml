@@ -1,0 +1,19 @@
+language: c
+compiler:
+- clang
+- gcc
+
+env:
+    global:
+        - CONFIG='--enable-debug --enable-cassert'
+    matrix:
+        - TAP=''                        BLKSZ=32     WALBLK=32
+
+        - TAP='--enable-tap-tests'      BLKSZ=4      WALBLK=4
+
+script:
+    - ./configure $CONFIG $TAP
+    - make -j2
+    - make check-world
+    - test ! -e $TRAVIS_BUILD_DIR/src/test/regress/regression.out || cat $TRAVIS_BUILD_DIR/src/test/regress/regression.out
+    - test ! -e $TRAVIS_BUILD_DIR/src/test/regress/regression.diffs || cat $TRAVIS_BUILD_DIR/src/test/regress/regression.diffs
