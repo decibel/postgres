@@ -1128,7 +1128,9 @@ pltcl_trigger_handler(PG_FUNCTION_ARGS, bool pltrusted)
 			 * Get the attribute number
 			 ************************************************************/
 			attnum = SPI_fnumber(tupdesc, ret_name);
-			if (attnum == SPI_ERROR_NOATTRIBUTE)
+			/* Assume system attributes can't be marked as dropped */
+			if (attnum == SPI_ERROR_NOATTRIBUTE ||
+					(attnum > 0 && tupdesc->attrs[attnum - 1]->attisdropped))
 				ereport(ERROR,
 						(errcode(ERRCODE_UNDEFINED_COLUMN),
 						 errmsg("unrecognized attribute \"%s\"",
@@ -1138,12 +1140,6 @@ pltcl_trigger_handler(PG_FUNCTION_ARGS, bool pltrusted)
 						(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 						 errmsg("cannot set system attribute \"%s\"",
 								ret_name)));
-
-			/************************************************************
-			 * Ignore dropped columns
-			 ************************************************************/
-			if (tupdesc->attrs[attnum - 1]->attisdropped)
-				continue;
 
 			/************************************************************
 			 * Lookup the attribute type in the syscache

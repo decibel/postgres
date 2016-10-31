@@ -89,6 +89,33 @@ FOR EACH ROW EXECUTE PROCEDURE trigger_data(23,'skidoo');
 CREATE TRIGGER show_trigger_data_view_trig
 INSTEAD OF INSERT OR UPDATE OR DELETE ON trigger_test_view
 FOR EACH ROW EXECUTE PROCEDURE trigger_data(24,'skidoo view');
+-- test handling of return
+CREATE TABLE test_return(i int, dropme int, t text);
+ALTER TABLE test_return DROP dropme;
+CREATE FUNCTION trigger_return() RETURNS trigger LANGUAGE pltcl AS $body$
+    switch $NEW(i) {
+        -1 {
+			return {"single element"}
+		}
+		-2 {
+			spi_exec "SELECT attname FROM pg_attribute WHERE attrelid=$TG_relid AND attisdropped"
+			set a($attname) 1
+			return [array get a]
+		}
+		-3 {
+			return {ctid 1}
+		}
+		-10 {
+			# Will return nothing
+		}
+		default {
+			return OK
+		}
+	}
+$body$;
+CREATE TRIGGER test_trigger_return
+BEFORE INSERT ON test_return
+FOR EACH ROW EXECUTE PROCEDURE trigger_return();
 --
 -- Trigger function on every change to T_pkey1
 --

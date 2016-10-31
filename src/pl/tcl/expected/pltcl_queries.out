@@ -184,6 +184,21 @@ select * from T_pkey2 order by key1 using @<, key2 collate "C";
 (4 rows)
 
 -- show dump of trigger data
+insert into test_return values(-1,'1 element array');
+ERROR:  trigger's return list must have even number of elements
+insert into test_return values(-2,'return dropped column');
+ERROR:  unrecognized attribute "........pg.dropped.2........"
+insert into test_return values(-3,'return ctid column');
+ERROR:  cannot set system attribute "ctid"
+insert into test_return values(-10,'do nothing');
+insert into test_return values(1,'good');
+select * from test_return;
+ i |  t   
+---+------
+   | 
+ 1 | good
+(2 rows)
+
 insert into trigger_test values(1,'insert');
 NOTICE:  NEW: {i: 1, v: insert}
 NOTICE:  OLD: {}

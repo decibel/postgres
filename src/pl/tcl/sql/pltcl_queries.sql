@@ -74,6 +74,13 @@ select * from T_pkey1 order by key1 using @<, key2 collate "C";
 select * from T_pkey2 order by key1 using @<, key2 collate "C";
 
 -- show dump of trigger data
+insert into test_return values(-1,'1 element array');
+insert into test_return values(-2,'return dropped column');
+insert into test_return values(-3,'return ctid column');
+insert into test_return values(-10,'do nothing');
+insert into test_return values(1,'good');
+select * from test_return;
+
 insert into trigger_test values(1,'insert');
 
 insert into trigger_test_view values(2,'insert');
