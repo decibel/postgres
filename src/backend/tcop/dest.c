@@ -81,6 +81,11 @@ static DestReceiver spi_printtupDR = {
 	DestSPI
 };
 
+static DestReceiver spi_callbackDR = {
+	donothingReceive, donothingStartup, donothingCleanup, donothingCleanup,
+	DestSPICallback
+};
+
 /* Globally available receiver for DestNone */
 DestReceiver *None_Receiver = &donothingDR;
 
@@ -116,6 +121,9 @@ CreateDestReceiver(CommandDest dest)
 
 		case DestSPI:
 			return &spi_printtupDR;
+
+		case DestSPICallback:
+			return &spi_callbackDR;
 
 		case DestTuplestore:
 			return CreateTuplestoreDestReceiver();
