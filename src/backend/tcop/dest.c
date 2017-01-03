@@ -170,6 +170,7 @@ EndCommand(const char *commandTag, CommandDest dest)
 		case DestNone:
 		case DestDebug:
 		case DestSPI:
+		case DestSPICallback:
 		case DestTuplestore:
 		case DestIntoRel:
 		case DestCopyOut:
@@ -213,6 +214,7 @@ NullCommand(CommandDest dest)
 		case DestNone:
 		case DestDebug:
 		case DestSPI:
+		case DestSPICallback:
 		case DestTuplestore:
 		case DestIntoRel:
 		case DestCopyOut:
@@ -258,6 +260,7 @@ ReadyForQuery(CommandDest dest)
 		case DestNone:
 		case DestDebug:
 		case DestSPI:
+		case DestSPICallback:
 		case DestTuplestore:
 		case DestIntoRel:
 		case DestCopyOut:
