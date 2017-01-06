@@ -365,7 +365,7 @@ PLy_CSStartup(DestReceiver *self, int operation, TupleDesc typeinfo)
 {
 	PLyExecutionContext *old_exec_ctx;
 	CallbackState *myState = (CallbackState *) self;
-	PLyTypeInfo args;
+	PLyTypeInfo *args;
 	
 	MemoryContext mctx, old_mctx;
 	PyObject *dict;
@@ -384,22 +384,22 @@ PLy_CSStartup(DestReceiver *self, int operation, TupleDesc typeinfo)
 	myState->desc = typeinfo;
 
 	/* Setup type conversion info */
-	PLy_typeinfo_init(&args, mctx);
-	myState->args = &args;
-	PLy_input_tuple_funcs(&args, typeinfo);
+	myState->args = args = palloc0(sizeof(PLyTypeInfo));
+	PLy_typeinfo_init(args, mctx);
+	PLy_input_tuple_funcs(args, typeinfo);
 
 	/*
 	 * We never palloc python objects, but this is an array of object pointers,
 	 * so it's OK.
 	 */
-	myState->lists = lists = palloc0(args.in.r.natts * sizeof(PyObject *));
+	myState->lists = lists = palloc0(args->in.r.natts * sizeof(PyObject *));
 
 	myState->dict = dict = PyDict_New();
 	if (dict == NULL)
 		PLy_elog(ERROR, "could not create new dictionary");
 
 
-	for (i = 0; i < args.in.r.natts; i++)
+	for (i = 0; i < args->in.r.natts; i++)
 	{
 		char	   *key;
 		PyObject   *value;
@@ -435,13 +435,13 @@ PLy_CSDestroy(DestReceiver *self)
 static bool
 PLy_CSreceive(TupleTableSlot *slot, DestReceiver *self)
 {
-	volatile TupleDesc	desc = slot->tts_tupleDescriptor;
-	volatile CallbackState *myState = (CallbackState *) self;
-	volatile PLyTypeInfo *args = myState->args;
-
+	TupleDesc		desc = slot->tts_tupleDescriptor;
+	CallbackState 	*myState = (CallbackState *) self;
+	PLyTypeInfo 	*args = myState->args;
 	PLyExecutionContext *old_exec_ctx = PLy_switch_execution_context(myState->exec_ctx);
-	MemoryContext scratch_context = PLy_get_scratch_context(myState->exec_ctx);
-	MemoryContext oldcontext = CurrentMemoryContext;
+	MemoryContext 	scratch_context = PLy_get_scratch_context(myState->exec_ctx);
+	MemoryContext 	oldcontext = CurrentMemoryContext;
+	int			i, rv;
 
 	/* Verify saved state matches incoming slot */
 	Assert(myState->desc == desc);
@@ -452,56 +452,59 @@ PLy_CSreceive(TupleTableSlot *slot, DestReceiver *self)
 
 	MemoryContextSwitchTo(scratch_context);
 
-	PG_TRY();
+
+	/*
+	 * Do the work in the scratch context to avoid leaking memory from the
+	 * datatype output function calls.
+	 */
+	for (i = 0; i < desc->natts; i++)
 	{
-		int			i, rv;
+		PyObject   		* volatile value = NULL;
+		PLyDatumToOb 	* volatile atts = &args->in.r.atts[i];
+
+		if (desc->attrs[i]->attisdropped)
+			continue;
+
+		if (myState->lists[i] == NULL)
+			ereport(ERROR,
+					(errmsg("missing list for attribute %d", i)));
+		/* XXX If the function can't be null, ditch that check */
+		if (slot->tts_isnull[i] || atts->func == NULL)
+		{
+			Py_INCREF(Py_None);
+			value = Py_None;
+		}
+		else
+		{
+			PG_TRY();
+			{
+				value = (atts->func) (atts, slot->tts_values[i]);
+			}
+			PG_CATCH();
+			{
+				Py_XDECREF(value);
+				MemoryContextSwitchTo(oldcontext);
+				PLy_switch_execution_context(old_exec_ctx);
+				PG_RE_THROW();
+			}
+			PG_END_TRY();
+		}
 
 		/*
-		 * Do the work in the scratch context to avoid leaking memory from the
-		 * datatype output function calls.
+		 * If we tried to do this in the PG_CATCH we'd have to mark value
+		 * as volatile, but that won't work with PyList_Append, so just
+		 * test the error code after doing Py_DECREF().
 		 */
-		for (i = 0; i < desc->natts; i++)
-		{
-			PyObject   *value = NULL;
-
-			if (desc->attrs[i]->attisdropped)
-				continue;
-
-			if (myState->lists[i] == NULL)
-				ereport(ERROR,
-						(errmsg("missing list for attribute %d", i)));
-			/* XXX If the function can't be null, ditch that check */
-			if (slot->tts_isnull[i] || args->in.r.atts[i].func == NULL)
-			{
-				Py_INCREF(Py_None);
-				value = Py_None;
-			}
-			else
-				value = (args->in.r.atts[i].func) (&args->in.r.atts[i], slot->tts_values[i]);
-
-			/*
-			 * If we tried to do this in the PG_CATCH we'd have to mark value
-			 * as volatile, but that won't work with PyList_Append, so just
-			 * test the error code after doing Py_DECREF().
-			 */
-			rv = PyList_Append(myState->lists[i], value);
-			Py_DECREF(value);
-			
-			if (rv != 0)
-				ereport(ERROR,
-						(errmsg("unable to append value to list")));
-		}
-		MemoryContextSwitchTo(oldcontext);
-		/* Should we just do this once, for the whole tuple?? */
-		MemoryContextReset(scratch_context);
+		rv = PyList_Append(myState->lists[i], value);
+		Py_DECREF(value);
+		
+		if (rv != 0)
+			ereport(ERROR,
+					(errmsg("unable to append value to list")));
 	}
-	PG_CATCH();
-	{
-		MemoryContextSwitchTo(oldcontext);
-		PLy_switch_execution_context(old_exec_ctx);
-		PG_RE_THROW();
-	}
-	PG_END_TRY();
+	MemoryContextSwitchTo(oldcontext);
+	/* Should we just do this once, for the whole tuple?? */
+	MemoryContextReset(scratch_context);
 	PLy_switch_execution_context(old_exec_ctx);
 
 	/* If we get here then we were successful */
@@ -558,23 +561,27 @@ PLy_spi_execute_query(char *query, long limit)
 	volatile MemoryContext oldcontext, cb_ctx;
 	volatile ResourceOwner oldowner;
 	PyObject   *ret = NULL;
-	CallbackState	*callback;
+	CallbackState	callback;
 
 	oldowner = CurrentResourceOwner;
 
-	/* Use a new context to make cleanup easier */
+	/*
+	 * Use a new context to make cleanup easier. Allocate it in the current
+	 * context so we don't have to worry about cleaning it up if there's an
+	 * error.
+	 */
 	cb_ctx = AllocSetContextCreate(CurrentMemoryContext,
 								"PL/Python callback context",
 								ALLOCSET_DEFAULT_SIZES);
 
 	oldcontext = MemoryContextSwitchTo(cb_ctx);
-	callback = palloc0(sizeof(CallbackState));
-	callback->mctx = cb_ctx;
-	memcpy(&(callback->pub), CreateDestReceiver(DestSPICallback), sizeof(DestReceiver));
-	callback->pub.receiveSlot = PLy_CSreceive;
-	callback->pub.rStartup = PLy_CSStartup;
-	callback->pub.rDestroy = PLy_CSDestroy;
-	callback->exec_ctx = exec_ctx;
+	//callback = palloc0(sizeof(CallbackState));
+	callback.mctx = cb_ctx;
+	memcpy(&(callback.pub), CreateDestReceiver(DestSPICallback), sizeof(DestReceiver));
+	callback.pub.receiveSlot = PLy_CSreceive;
+	callback.pub.rStartup = PLy_CSStartup;
+	callback.pub.rDestroy = PLy_CSDestroy;
+	callback.exec_ctx = exec_ctx;
 
 	PLy_spi_subtransaction_begin(oldcontext, oldowner);
 
@@ -583,12 +590,12 @@ PLy_spi_execute_query(char *query, long limit)
 
 		pg_verifymbstr(query, strlen(query), false);
 		rv = SPI_execute_callback(query, exec_ctx->curr_proc->fn_readonly, limit,
-				(DestReceiver *) callback);
+				(DestReceiver *) &callback);
 		/*
-		 * callback->dict gets set in PLy_CSStartup, which happens during
+		 * callback.dict gets set in PLy_CSStartup, which happens during
 		 * executor startup. It's not valid before then.
 		 */
-		ret = callback->dict;
+		ret = callback.dict;
 
 		PLy_spi_subtransaction_commit(oldcontext, oldowner);
 	}
@@ -607,6 +614,10 @@ PLy_spi_execute_query(char *query, long limit)
 						  SPI_result_code_string(rv));
 		return NULL;
 	}
+
+	/* Free the callback context. */
+	MemoryContextSwitchTo(oldcontext);
+	MemoryContextDelete(cb_ctx);
 
 	return ret;
 }
