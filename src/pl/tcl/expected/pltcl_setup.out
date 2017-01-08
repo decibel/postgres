@@ -49,10 +49,31 @@ create function check_pkey1_exists(int4, bpchar) returns bool as E'
     return "f"
 ' language pltcl;
 -- dump trigger data
-CREATE TABLE trigger_test
-    (i int, v text );
-CREATE VIEW trigger_test_view AS SELECT * FROM trigger_test;
+CREATE TABLE trigger_test (
+	i int,
+	v text,
+	dropme text,
+	test_skip boolean DEFAULT false,
+	test_return_null boolean DEFAULT false,
+	test_argisnull boolean DEFAULT false
+);
+-- Make certain dropped attributes are handled correctly
+ALTER TABLE trigger_test DROP dropme;
+CREATE VIEW trigger_test_view AS SELECT i, v FROM trigger_test;
 CREATE FUNCTION trigger_data() returns trigger language pltcl as $_$
+	if {$TG_table_name eq "trigger_test" && $TG_level eq "ROW" && $TG_op ne "DELETE"} {
+		# Special case tests
+		if {$NEW(test_return_null) eq "t" } {
+			return_null
+		}
+		if {$NEW(test_argisnull) eq "t" } {
+			set should_error [argisnull 1]
+		}
+		if {$NEW(test_skip) eq "t" } {
+			elog NOTICE "SKIPPING OPERATION $TG_op"
+			return SKIP
+		}
+	}
 
 	if { [info exists TG_relid] } {
 	set TG_relid "bogus:12345"
@@ -86,6 +107,9 @@ $_$;
 CREATE TRIGGER show_trigger_data_trig
 BEFORE INSERT OR UPDATE OR DELETE ON trigger_test
 FOR EACH ROW EXECUTE PROCEDURE trigger_data(23,'skidoo');
+CREATE TRIGGER statement_trigger
+BEFORE INSERT OR UPDATE OR DELETE OR TRUNCATE ON trigger_test
+FOR EACH STATEMENT EXECUTE PROCEDURE trigger_data(42,'statement trigger');
 CREATE TRIGGER show_trigger_data_view_trig
 INSTEAD OF INSERT OR UPDATE OR DELETE ON trigger_test_view
 FOR EACH ROW EXECUTE PROCEDURE trigger_data(24,'skidoo view');
@@ -555,44 +579,106 @@ NOTICE:  tclsnitch: ddl_command_start DROP TABLE
 NOTICE:  tclsnitch: ddl_command_end DROP TABLE
 drop event trigger tcl_a_snitch;
 drop event trigger tcl_b_snitch;
-CREATE FUNCTION tcl_test_cube_squared(in int, out squared int, out cubed int) AS $$
+create function tcl_test_cube_squared(in int, out squared int, out cubed int) as $$
     return [list squared [expr {$1 * $1}] cubed [expr {$1 * $1 * $1}]]
 $$ language pltcl;
-CREATE FUNCTION tcl_test_squared_rows(int,int) RETURNS TABLE (x int, y int) AS $$
+create function tcl_test_squared_rows(int,int) returns table (x int, y int) as $$
     for {set i $1} {$i < $2} {incr i} {
         return_next [list y [expr {$i * $i}] x $i]
     }
 $$ language pltcl;
-CREATE FUNCTION tcl_test_sequence(int,int) RETURNS SETOF int AS $$
+create function tcl_test_sequence(int,int) returns setof int as $$
     for {set i $1} {$i < $2} {incr i} {
         return_next $i
     }
 $$ language pltcl;
--- test use of errorCode in error handling
-create function tcl_error_handling_test() returns text as $$
-    global errorCode
-    if {[catch { spi_exec "select no_such_column from foo;" }]} {
-        array set errArray $errorCode
-        if {$errArray(condition) == "undefined_table"} {
-            return "expected error: $errArray(message)"
-        } else {
-            return "unexpected error: $errArray(condition) $errArray(message)"
-        }
+create or replace function tcl_eval(in string varchar) returns text as $$
+	eval $1
+$$ language 'pltcl';
+-- test use of errorcode in error handling
+create function public.tcl_error_handling_test(text)
+ returns text
+ language pltcl
+as $function$
+    if {[catch $1 err]} {
+		if {[lindex $::errorCode 0] != "POSTGRES"} {
+			return "Unexpected error type [lindex $::errorCode 0] for error $::errorCode"
+		}
+
+		# Set keys that will change over time to fixed values
+		array set myArray $::errorCode
+		set myArray(funcname) "'funcname'"
+		set myArray(lineno) 'lineno'
+		set myArray(POSTGRES) 'POSTGRES'
+
+		set vals []
+		# Format into something nicer
+		foreach {key} [lsort [array names myArray]] {
+			set value [string map {"\n" "\n\t"} $myArray($key)]
+			lappend vals "$key: $value"
+		}
+		return [join $vals "\n"]
+
     } else {
         return "no error"
     }
-$$ language pltcl;
-select tcl_error_handling_test();
-            tcl_error_handling_test            
------------------------------------------------
- expected error: relation "foo" does not exist
-(1 row)
+$function$
+;
+-- test use of arrays
+create function tcl_spi_exec(
+	prepare boolean,
+	action text
+)
+returns void language pltcl AS $function$
+# unnest would be easier but this way we get multiple fields
+set query "SELECT *
+	FROM pg_attribute
+	WHERE attrelid = 'pg_class'::regclass
+		AND attnum BETWEEN 1 AND 3
+		ORDER BY attnum"
+if {$1 == "t"} {
+	set prep [spi_prepare $query {}]
+	spi_execp -array A $prep {
+		elog NOTICE "attnum $A(attnum), attname $A(attname)"
 
-create temp table foo(f1 int);
-select tcl_error_handling_test();
-                          tcl_error_handling_test                          
----------------------------------------------------------------------------
- unexpected error: undefined_column column "no_such_column" does not exist
-(1 row)
+		switch $A(attnum) {
+			2 {
+				elog NOTICE "action: $2"
+				switch $2 {
+					break {
+						break
+					}
+					return {
+						return
+					}
+					error {
+						error "error message"
+					}
+				}
+			}
+		}
+	}
+} else {
+	spi_exec -array A $query {
+		elog NOTICE "attnum $A(attnum), attname $A(attname)"
 
-drop table foo;
+		switch $A(attnum) {
+			2 {
+				elog NOTICE "action: $2"
+				switch $2 {
+					break {
+						break
+					}
+					return {
+						return
+					}
+					error {
+						error "error message"
+					}
+				}
+			}
+		}
+	}
+}
+elog NOTICE "end of function"
+$function$;
