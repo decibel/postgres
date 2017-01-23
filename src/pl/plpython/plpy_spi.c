@@ -192,28 +192,37 @@ PLy_spi_prepare(PyObject *self, PyObject *args)
  * execute(plan=plan, values=(foo, bar), limit=5)
  */
 PyObject *
-PLy_spi_execute(PyObject *self, PyObject *args)
+PLy_spi_execute(PyObject *self, PyObject *args, PyObject *kw)
 {
 	char	   *query;
 	PyObject   *plan;
 	PyObject   *list = NULL;
 	long		limit = 0;
+	PyObject   *container = NULL;
+	PyObject   *members = NULL;
+	static char *exec_kwlist[] = {"query", "max-rows", "container", "members", NULL};
+	static char *plan_kwlist[] = {"plan", "arguments", "max-rows", "container", "members", NULL};
 
-	if (PyArg_ParseTuple(args, "s|l", &query, &limit))
-		return PLy_spi_execute_query(query, limit);
+	if (PyArg_ParseTupleAndKeywords(args, kw, "s|lOO", exec_kwlist,
+				&query, &limit,
+				&container, &members))
+		return PLy_spi_execute_query(query, limit, container, members);
 
 	PyErr_Clear();
 
-	if (PyArg_ParseTuple(args, "O|Ol", &plan, &list, &limit) &&
+	if (PyArg_ParseTupleAndKeywords(args, kw, "O|OlOO", plan_kwlist,
+				&plan, &list, &limit,
+				&container, &members) &&
 		is_PLyPlanObject(plan))
-		return PLy_spi_execute_plan(plan, list, limit);
+		return PLy_spi_execute_plan(plan, list, limit, container, members);
 
 	PLy_exception_set(PLy_exc_error, "plpy.execute expected a query or a plan");
 	return NULL;
 }
 
 static PyObject *
-PLy_spi_execute_plan(PyObject *ob, PyObject *list, long limit)
+PLy_spi_execute_plan(PyObject *ob, PyObject *list, long limit,
+		PyObject *container, PyObject *members)
 {
 	volatile int nargs;
 	int			i,
@@ -236,6 +245,9 @@ PLy_spi_execute_plan(PyObject *ob, PyObject *list, long limit)
 		nargs = 0;
 
 	plan = (PLyPlanObject *) ob;
+
+	if (!PLy_ContainerMembers_Check(&container, &members))
+		return NULL;
 
 	if (nargs != plan->nargs)
 	{
@@ -562,6 +574,9 @@ PLy_spi_execute_query(char *query, long limit)
 	volatile ResourceOwner oldowner;
 	PyObject   *ret = NULL;
 	CallbackState	callback;
+
+	if (!PLy_ContainerMembers_Check(&container, &members))
+		return NULL;
 
 	oldowner = CurrentResourceOwner;
 
